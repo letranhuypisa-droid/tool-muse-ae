@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Muse Manager</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="logo" aria-hidden="true"></span>Muse Manager</div>
+    <div class="topbar-right">
+      <span class="queue-status" id="queue-status">Đang kết nối…</span>
+      <button class="btn" id="toggle-queue" type="button">Tạm dừng</button>
+    </div>
+  </header>
+
+  <div class="banner" id="banner" role="status" hidden>Tất cả tài khoản đang hết lượt hoặc cần đăng nhập</div>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="create" aria-selected="true">Tạo mới</button>
+    <button role="tab" data-tab="queue" aria-selected="false">Hàng đợi <span class="count" id="count-queue"></span></button>
+    <button role="tab" data-tab="accounts" aria-selected="false">Tài khoản <span class="count" id="count-accounts"></span></button>
+    <button role="tab" data-tab="library" aria-selected="false">Thư viện</button>
+    <button role="tab" data-tab="settings" aria-selected="false">Cài đặt</button>
+  </nav>
+
+  <main>
+    <section id="tab-create" role="tabpanel">
+      <form class="card form" id="create-form" novalidate>
+        <div class="row between">
+          <div class="segmented" role="group" aria-label="Loại">
+            <button type="button" data-type="image" aria-pressed="false">Ảnh</button>
+            <button type="button" data-type="video" aria-pressed="true">Video</button>
+          </div>
+          <label class="check"><input type="checkbox" id="bulk"> Nhập nhiều prompt</label>
+        </div>
+
+        <label class="label" for="prompt">Prompt</label>
+        <textarea id="prompt" rows="5" placeholder="Mô tả ảnh/video bạn muốn tạo…"></textarea>
+        <p class="hint" id="prompt-hint">Muse sẽ nhận đúng nội dung này kèm câu yêu cầu tạo ngay.</p>
+
+        <span class="label">Ảnh tham chiếu</span>
+        <div class="dropzone" id="dropzone" role="button" tabindex="0">
+          Kéo thả ảnh vào đây hoặc bấm để chọn <small>JPG, PNG, WEBP · tối đa 9 ảnh, 20 MB mỗi ảnh</small>
+        </div>
+        <input type="file" id="ref-input" multiple accept="image/png,image/jpeg,image/webp" hidden>
+        <div class="refs" id="refs"></div>
+
+        <div id="video-options">
+          <label class="label" for="duration">Thời lượng</label>
+          <div class="range-row">
+            <input type="range" id="duration" min="1" max="60" value="10">
+            <output id="duration-out" for="duration">10 giây · 1 clip</output>
+          </div>
+          <p class="hint">Muse luôn tạo clip 10 giây. Dài hơn sẽ nối nhiều clip, ngắn hơn sẽ cắt bớt.</p>
+          <label class="check"><input type="checkbox" id="upscale" checked> Xuất 1080p (phóng to từ bản gốc của Muse)</label>
+        </div>
+
+        <label class="label" for="count">Số bản</label>
+        <input type="number" id="count" min="1" max="20" value="1" class="narrow">
+
+        <p class="form-error" id="create-error" role="alert"></p>
+        <div class="row">
+          <button type="submit" class="btn primary">Thêm vào hàng đợi</button>
+        </div>
+      </form>
+    </section>
+
+    <section id="tab-queue" role="tabpanel" hidden>
+      <div class="list" id="queue-list"></div>
+    </section>
+
+    <section id="tab-accounts" role="tabpanel" hidden>
+      <form class="card row" id="account-form">
+        <input type="text" id="account-name" maxlength="50" placeholder="Tên gợi nhớ, ví dụ: Gmail số 2" aria-label="Tên tài khoản">
+        <button type="submit" class="btn primary">Thêm tài khoản</button>
+      </form>
+      <p class="hint pad">Bấm "Thêm tài khoản" sẽ mở một cửa sổ Chrome riêng. Bạn tự đăng nhập muse.ai trong cửa sổ đó, rồi quay lại bấm "Đã đăng nhập". Tool không lưu mật khẩu.</p>
+      <div class="grid" id="account-list"></div>
+    </section>
+
+    <section id="tab-library" role="tabpanel" hidden>
+      <div class="row between pad">
+        <span class="hint" id="library-summary"></span>
+        <button class="btn" type="button" id="open-downloads">Mở thư mục kết quả</button>
+      </div>
+      <div class="grid media-grid" id="library-list"></div>
+    </section>
+
+    <section id="tab-settings" role="tabpanel" hidden>
+      <form class="card form" id="settings-form" novalidate>
+        <div class="fields">
+          <label>Số luồng chạy song song<input type="number" name="concurrency" min="1" max="8"></label>
+          <label>Nghỉ khi tài khoản hết lượt (giờ)<input type="number" name="cooldownHours" min="1" max="168"></label>
+          <label>Nghỉ giữa 2 việc, từ (giây)<input type="number" name="delayMinSec" min="0" max="600"></label>
+          <label>Nghỉ giữa 2 việc, đến (giây)<input type="number" name="delayMaxSec" min="0" max="3600"></label>
+          <label>Giới hạn việc/ngày mỗi tài khoản (0 = không giới hạn)<input type="number" name="dailyCapPerAccount" min="0"></label>
+          <label>Số lần thử lại khi lỗi<input type="number" name="maxRetries" min="0" max="5"></label>
+          <label>Chờ tối đa mỗi ảnh (phút)<input type="number" name="imageTimeoutMin" min="1" max="30"></label>
+          <label>Chờ tối đa mỗi clip video (phút)<input type="number" name="videoTimeoutMin" min="1" max="30"></label>
+        </div>
+        <label class="check"><input type="checkbox" name="headless"> Ẩn cửa sổ trình duyệt khi chạy việc</label>
+        <details>
+          <summary>Mẫu tin nhắn gửi cho Muse (nâng cao)</summary>
+          <p class="hint">{prompt} là chỗ chèn prompt của bạn.</p>
+          <label>Tạo ảnh<textarea name="tpl-image" rows="2"></textarea></label>
+          <label>Tạo video<textarea name="tpl-video" rows="2"></textarea></label>
+          <label>Video nối tiếp (clip 2 trở đi)<textarea name="tpl-continue" rows="2"></textarea></label>
+          <label>Câu thêm khi có ảnh tham chiếu<textarea name="tpl-refSuffix" rows="2"></textarea></label>
+        </details>
+        <p class="form-error" id="settings-error" role="alert"></p>
+        <div class="row"><button type="submit" class="btn primary">Lưu cài đặt</button></div>
+      </form>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

@@ -10,7 +10,7 @@ import { createJsonStore } from "../../src/store.js";
 import { createFakeDriver } from "../../src/muse/fakeDriver.js";
 
 // Dựng app với dữ liệu trong thư mục tạm; runJob mặc định treo cho tới khi test gọi resolve.
-export async function startTestApp({ runJob, driver, opened = [] } = {}) {
+export async function startTestApp({ runJob, makeRunJob, driver, opened = [], tickMs = 1_000_000 } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "muse app "));
   const paths = getPaths(root);
   ensureDirs(paths);
@@ -23,8 +23,10 @@ export async function startTestApp({ runJob, driver, opened = [] } = {}) {
   const fake = driver ?? createFakeDriver(() => ({ media: [], replyText: "" }));
   const pending = [];
   const scheduler = createScheduler({
-    accounts, jobs, getSettings: () => settings.get(), driver: fake, tickMs: 1_000_000,
-    runJob: runJob ?? ((job, account, { signal }) => new Promise((resolve) => pending.push({ job, account, signal, resolve }))),
+    accounts, jobs, getSettings: () => settings.get(), driver: fake, tickMs,
+    runJob: makeRunJob?.({ jobs, paths, settings, driver: fake })
+      ?? runJob
+      ?? ((job, account, { signal }) => new Promise((resolve) => pending.push({ job, account, signal, resolve }))),
   });
   const app = createApp({ accounts, jobs, scheduler, driver: fake, settings, paths, openPath: (p) => opened.push(p) });
   const server = await new Promise((resolve) => {
