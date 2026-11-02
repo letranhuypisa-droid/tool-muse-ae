@@ -32,7 +32,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   delayMinSec: 20,
   delayMaxSec: 60,
   dailyCapPerAccount: 0,
-  // Việc chạy trong Chrome ẩn để không bật cửa sổ khi bạn đang dùng máy; cửa sổ chỉ hiện lúc đăng nhập.
+  // "Chạy ẩn": cửa sổ Chrome của việc nằm ngoài màn hình (xem launchOptions trong muse/driver.js); chỉ hiện lúc đăng nhập.
   headless: true,
   imageTimeoutMin: 3,
   videoTimeoutMin: 6,

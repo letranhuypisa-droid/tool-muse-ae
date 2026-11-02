@@ -6,8 +6,26 @@ import * as sel from "./selectors.js";
 
 const EXT_BY_MIME = { "image/webp": "webp", "image/png": "png", "image/jpeg": "jpg", "video/mp4": "mp4" };
 
-async function launch(profileDir, headless) {
-  const options = { headless, viewport: { width: 1280, height: 860 } };
+// Chạy ẩn = Chrome thật có cửa sổ nhưng đặt ngoài màn hình. Không dùng headless: muse.ai không nhận
+// tin nhắn gửi từ Chrome headless ("Delivery not confirmed", thấy khi chạy thật ngày 2026-11-02).
+// Các cờ còn lại giữ cho trang chạy bình thường dù cửa sổ không nằm trong vùng nhìn thấy.
+const OFFSCREEN_ARGS = [
+  "--window-position=-32000,-32000",
+  "--disable-backgrounding-occluded-windows",
+  "--disable-renderer-backgrounding",
+  "--disable-background-timer-throttling",
+  "--disable-features=CalculateNativeWinOcclusion",
+];
+
+// hiddenMode "headless" chỉ dành cho bộ test (trang muse.ai giả).
+export function launchOptions({ hidden, hiddenMode }) {
+  if (!hidden) return { headless: false, args: [] };
+  if (hiddenMode === "headless") return { headless: true, args: [] };
+  return { headless: false, args: [...OFFSCREEN_ARGS] };
+}
+
+async function launch(profileDir, { headless, args }) {
+  const options = { headless, args, viewport: { width: 1280, height: 860 } };
   try {
     return await chromium.launchPersistentContext(profileDir, { ...options, channel: "chrome" });
   } catch (chromeErr) {
@@ -95,24 +113,26 @@ async function collectInPage({ prefix, full, before, sel }) {
 export function createMuseDriver({
   profilesDir, errorsDir, getSettings, homeUrl = sel.HOME_URL,
   loginWaitMs = 20_000, stopAppearMs = 30_000, settleMs = 3000, sendWaitMs = 15_000, uploadWaitMs = 120_000, lateMediaMs = 15_000,
+  hiddenMode = "offscreen",
 }) {
-  const sessions = new Map(); // accountId → Promise<{ context, page, headless }>
+  const sessions = new Map(); // accountId → Promise<{ context, page, hidden }>
 
-  async function open(accountId, headful) {
+  // visible = true: cửa sổ cho người dùng đăng nhập; ngược lại theo cài đặt "Chạy ẩn".
+  async function open(accountId, visible) {
     const existing = sessions.get(accountId);
     if (existing) {
       const s = await existing;
-      if (!(headful && s.headless) && !s.page.isClosed()) return s;
+      if (!(visible && s.hidden) && !s.page.isClosed()) return s;
       await close(accountId);
     }
-    const headless = headful ? false : getSettings().headless;
+    const hidden = !visible && getSettings().headless;
     const pending = (async () => {
-      const context = await launch(path.join(profilesDir, accountId), headless);
+      const context = await launch(path.join(profilesDir, accountId), launchOptions({ hidden, hiddenMode }));
       context.on("close", () => {
         if (sessions.get(accountId) === pending) sessions.delete(accountId);
       });
       const page = context.pages()[0] ?? (await context.newPage());
-      return { context, page, headless };
+      return { context, page, hidden };
     })();
     sessions.set(accountId, pending);
     try {

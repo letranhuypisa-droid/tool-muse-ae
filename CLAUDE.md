@@ -19,7 +19,7 @@ Mọi lệnh gọi API của tool đang chạy (`http://127.0.0.1:3000`). Luôn 
 npm run muse -- start
 ```
 
-Lệnh `start` chạy tool ngầm, không mở trình duyệt; nếu tool đã chạy sẵn thì không làm gì. Việc tạo ảnh/video chạy trong Chrome ẩn; cửa sổ Chrome chỉ hiện khi cần đăng nhập. Giao diện cho người dùng: http://localhost:3000.
+Lệnh `start` chạy tool ngầm, không mở trình duyệt; nếu tool đã chạy sẵn thì không làm gì. Việc tạo ảnh/video chạy trong một cửa sổ Chrome đặt ngoài màn hình nên người dùng không thấy; cửa sổ Chrome chỉ hiện ra trên màn hình khi cần đăng nhập. Giao diện cho người dùng: http://localhost:3000.
 
 | Lệnh | Việc |
 |---|---|
@@ -74,5 +74,6 @@ File kết quả nằm ở `downloads/YYYY-MM-DD/<jobId>_<slug>.mp4` (ảnh là 
   1. Chat dài mở ra ở chỗ đọc dở, nên phải cuộn xuống cuối mới thấy câu trả lời mới.
   2. Nút Send bị khóa trong lúc ảnh đính kèm đang tải lên; gửi lúc đó muse.ai sẽ báo "Delivery not confirmed".
   3. Ảnh/video mất vài giây mới giải mã xong, nên phải chờ trước khi kết luận "không có media". Kết luận sai sẽ làm tốn thêm lượt.
+  4. muse.ai **không nhận tin nhắn gửi từ Chrome headless** (báo "Delivery not confirmed"). Vì vậy "chạy ẩn" dùng Chrome thật đặt cửa sổ ngoài màn hình. Không chuyển sang headless và không giả dạng trình duyệt để lách việc này.
 - Thiết kế và kế hoạch: `docs/superpowers/specs/`, `docs/superpowers/plans/`.
 - Muốn thử trên muse.ai thật thì phải hỏi người dùng trước, vì mỗi lần thử tốn lượt.

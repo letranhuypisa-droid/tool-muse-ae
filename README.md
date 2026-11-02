@@ -20,7 +20,7 @@ Bấm đúp **`start.bat`**. Lần đầu tool tự cài thư viện, sau đó m
 
 Mỗi tài khoản có một hồ sơ Chrome riêng trong thư mục `profiles/`, nên các phiên đăng nhập không lẫn vào nhau. Tool **không lưu mật khẩu**. Nếu muse.ai đăng xuất, tài khoản sẽ chuyển về "Cần đăng nhập": bấm **Mở cửa sổ**, đăng nhập lại, rồi bấm **Đã đăng nhập**.
 
-**Cửa sổ Chrome chỉ hiện lúc đăng nhập.** Sau đó mọi việc tạo ảnh/video chạy trong Chrome ẩn, không bật cửa sổ hay giành chuột/bàn phím khi bạn đang dùng máy. Muốn nhìn tool làm việc, bỏ chọn "Chạy ẩn" trong **Cài đặt**.
+**Cửa sổ Chrome chỉ hiện lúc đăng nhập.** Sau đó mọi việc tạo ảnh/video chạy trong một cửa sổ Chrome đặt ngoài màn hình: bạn không thấy nó, chỉ có thể thấy biểu tượng Chrome trên thanh taskbar trong lúc tool đang tạo. Tool không dùng Chrome headless, vì muse.ai không nhận tin nhắn gửi từ đó. Muốn nhìn tool làm việc, bỏ chọn "Chạy ẩn" trong **Cài đặt**.
 
 ## Tạo ảnh / video
 

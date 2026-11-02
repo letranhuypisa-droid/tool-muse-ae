@@ -198,3 +198,11 @@ test("image job cancelled during a turn is not marked done", async () => {
   await run(job);
   assert.equal(jobs.get(job.id).status, "cancelled");
 });
+
+test("undelivered message → TRANSIENT with a clear Vietnamese reason", async () => {
+  const { jobs, run } = setup(() => ({ media: [], replyText: "Delivery not confirmed" }));
+  const [job] = jobs.enqueue({ type: "image", prompt: "x" });
+  const outcome = await run(job);
+  assert.equal(outcome.code, "TRANSIENT");
+  assert.match(outcome.message, /không nhận tin nhắn/);
+});

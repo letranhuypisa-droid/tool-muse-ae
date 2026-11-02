@@ -14,11 +14,13 @@ const NO_MEDIA_MESSAGES = {
   LIMIT: "Tài khoản đã hết lượt",
   REFUSED: "Muse từ chối yêu cầu",
   NO_MEDIA: "Muse trả lời nhưng không gửi ảnh/video",
+  UNDELIVERED: "muse.ai không nhận tin nhắn (Delivery not confirmed)",
 };
 
 function noMedia(replyText) {
   const kind = classifyReply(replyText);
-  return { ok: false, code: kind === "NO_MEDIA" ? "TRANSIENT" : kind, message: NO_MEDIA_MESSAGES[kind], replyText };
+  const code = kind === "LIMIT" || kind === "REFUSED" ? kind : "TRANSIENT";
+  return { ok: false, code, message: NO_MEDIA_MESSAGES[kind], replyText };
 }
 
 export function createRunner({ driver, jobs, paths, getSettings, ffmpeg = defaultFfmpeg, now = () => new Date() }) {

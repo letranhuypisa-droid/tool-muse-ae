@@ -18,6 +18,8 @@ export const REFUSAL_KEYWORDS = [
 
 export function classifyReply(text) {
   const t = String(text ?? "").toLowerCase();
+  // muse.ai hiện dòng này dưới tin nhắn khi máy chủ không nhận được nó — Muse chưa hề đọc yêu cầu.
+  if (t.includes("delivery not confirmed")) return "UNDELIVERED";
   if (LIMIT_KEYWORDS.some((k) => t.includes(k))) return "LIMIT";
   if (REFUSAL_KEYWORDS.some((k) => t.includes(k))) return "REFUSED";
   return "NO_MEDIA";

@@ -20,6 +20,7 @@ before(async () => {
     profilesDir: path.join(dir, "profiles"),
     errorsDir: path.join(dir, "errors"),
     getSettings: () => normalizeSettings({ headless: true }),
+    hiddenMode: "headless",
     homeUrl: server.url,
     sendWaitMs: 3000,
     lateMediaMs: 2000,
@@ -94,6 +95,7 @@ test("logged-out page → MuseError NOT_LOGGED_IN with screenshot", async () => 
     profilesDir: path.join(dir, "profiles"),
     errorsDir: path.join(dir, "errors"),
     getSettings: () => normalizeSettings({ headless: true }),
+    hiddenMode: "headless",
     homeUrl: server.url + "?loggedout",
     loginWaitMs: 1500,
   });
@@ -132,6 +134,7 @@ test("long chat opened mid-history: scrolls down so the new reply is read", asyn
     profilesDir: path.join(dir, "profiles"),
     errorsDir: path.join(dir, "errors"),
     getSettings: () => normalizeSettings({ headless: true }),
+    hiddenMode: "headless",
     homeUrl: server.url + "?lazy",
     sendWaitMs: 3000,
   });
@@ -157,6 +160,7 @@ test("media that shows up a few seconds late is still collected (no wasted retry
     profilesDir: path.join(dir, "profiles"),
     errorsDir: path.join(dir, "errors"),
     getSettings: () => normalizeSettings({ headless: true }),
+    hiddenMode: "headless",
     homeUrl: server.url + "?slowmedia",
     sendWaitMs: 3000,
   });

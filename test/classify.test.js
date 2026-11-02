@@ -31,3 +31,8 @@ test("classifyReply ignores ordinary words that look like limits or refusals", (
     assert.equal(classifyReply(text), "NO_MEDIA", text);
   }
 });
+
+test("classifyReply spots messages muse.ai did not accept", () => {
+  assert.equal(classifyReply("Delivery not confirmed"), "UNDELIVERED");
+  assert.equal(classifyReply("Tạo ngay 1 ảnh … Delivery not confirmed"), "UNDELIVERED");
+});
