@@ -22,6 +22,7 @@ const USAGE = `Cách dùng: npm run muse -- <lệnh> [tùy chọn]
   batch <file.json|file.txt> Thêm cả loạt. JSON: [{ "prompt", "type", "duration", "refs": [...], "count", "upscale1080" }]
                              (đường dẫn refs tính từ thư mục chứa file). TXT: mỗi dòng một prompt, dùng tùy chọn của add.
   wait <jobId...>            Chờ các việc xong
+  retry <jobId...> [--wait]  Chạy lại việc bị lỗi / bị từ chối / đã hủy
   jobs [--limit n]           Các việc gần đây
   accounts                   Danh sách tài khoản
   accounts add <tên>         Thêm tài khoản, mở cửa sổ Chrome để bạn tự đăng nhập
@@ -265,6 +266,14 @@ export async function runCli(argv, {
       const ids = positionals.slice(1);
       if (!ids.length) throw new CliError("Cần ít nhất một jobId: npm run muse -- wait job_xxx");
       return report(await waitFor(ids));
+    },
+
+    async retry() {
+      const ids = positionals.slice(1);
+      if (!ids.length) throw new CliError("Cần ít nhất một jobId: npm run muse -- retry job_xxx");
+      const jobs = [];
+      for (const id of ids) jobs.push(await call("POST", `/api/jobs/${id}/retry`));
+      return finish(jobs);
     },
 
     async jobs() {

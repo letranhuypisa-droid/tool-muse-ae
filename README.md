@@ -20,6 +20,8 @@ Bấm đúp **`start.bat`**. Lần đầu tool tự cài thư viện, sau đó m
 
 Mỗi tài khoản có một hồ sơ Chrome riêng trong thư mục `profiles/`, nên các phiên đăng nhập không lẫn vào nhau. Tool **không lưu mật khẩu**. Nếu muse.ai đăng xuất, tài khoản sẽ chuyển về "Cần đăng nhập": bấm **Mở cửa sổ**, đăng nhập lại, rồi bấm **Đã đăng nhập**.
 
+**Cửa sổ Chrome chỉ hiện lúc đăng nhập.** Sau đó mọi việc tạo ảnh/video chạy trong Chrome ẩn, không bật cửa sổ hay giành chuột/bàn phím khi bạn đang dùng máy. Muốn nhìn tool làm việc, bỏ chọn "Chạy ẩn" trong **Cài đặt**.
+
 ## Tạo ảnh / video
 
 Vào tab **Tạo mới**:
@@ -38,6 +40,22 @@ Tool tự chia việc cho các tài khoản đang sẵn sàng, mặc định ch�
 - **Trên 10 giây**: tool tạo nhiều clip nối nhau. Clip sau dùng khung hình cuối của clip trước làm ảnh tham chiếu, sau đó tool ghép lại và cắt đúng số giây. Chỗ nối có thể không liền mạch 100%.
 - **1080p**: tool phóng video lên 1080 ở cạnh ngắn (ví dụ 1152×768 thành 1620×1080). File ra đúng kích thước 1080p nhưng chi tiết không nét bằng video gốc 1080p.
 
+## Dùng bằng dòng lệnh (và với Claude Code)
+
+Mọi việc trên giao diện đều làm được bằng lệnh `npm run muse -- <lệnh>`:
+
+```bash
+npm run muse -- start
+npm run muse -- status
+npm run muse -- add --prompt "Bãi cọc Bạch Đằng lúc bình minh" --type image --wait
+npm run muse -- add --prompt "Drone bay qua bãi cọc" --duration 15 --ref downloads/2026-11-02/anh.webp --wait
+npm run muse -- batch scenes.json --wait
+```
+
+Lệnh `start` bật tool ngầm và không mở trình duyệt. `npm run muse -- help` liệt kê đủ các lệnh và tùy chọn. Thêm `--json` để in kết quả dạng JSON.
+
+Khi mở thư mục này trong một phiên **Claude Code**, Claude sẽ đọc [CLAUDE.md](CLAUDE.md) để biết cách dùng tool, gồm quy trình gợi ý cho kênh lịch sử: tạo ảnh chủ đạo cho từng cảnh trước, rồi tạo video lấy ảnh đó làm tham chiếu. Claude không đăng nhập thay bạn: khi một tài khoản cần đăng nhập, Claude sẽ nhờ bạn.
+
 ## File nằm ở đâu
 
 | Thư mục | Nội dung |
@@ -47,6 +65,8 @@ Tool tự chia việc cho các tài khoản đang sẵn sàng, mặc định ch�
 | `data/` | Danh sách tài khoản, hàng đợi, cài đặt |
 | `data/errors/` | Ảnh chụp màn hình khi có lỗi (để dò lỗi) |
 | `profiles/` | Hồ sơ Chrome của từng tài khoản (chứa phiên đăng nhập, đừng chia sẻ thư mục này) |
+
+**Nên đặt tool ngoài OneDrive**, ví dụ `C:\dev\muse-manager`. Hồ sơ Chrome ghi file liên tục, khiến OneDrive đồng bộ suốt và đôi khi khóa file. Chuyển cả thư mục (gồm `profiles/` và `data/`) thì không phải đăng nhập lại. Nếu clone repo từ git sang chỗ mới, `profiles/` không đi theo, nên phải đăng nhập lại từng tài khoản.
 
 ## Khi gặp lỗi
 

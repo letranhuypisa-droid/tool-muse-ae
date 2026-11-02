@@ -94,7 +94,7 @@ async function collectInPage({ prefix, full, before, sel }) {
 
 export function createMuseDriver({
   profilesDir, errorsDir, getSettings, homeUrl = sel.HOME_URL,
-  loginWaitMs = 20_000, stopAppearMs = 30_000, settleMs = 3000, sendWaitMs = 15_000, uploadWaitMs = 120_000,
+  loginWaitMs = 20_000, stopAppearMs = 30_000, settleMs = 3000, sendWaitMs = 15_000, uploadWaitMs = 120_000, lateMediaMs = 15_000,
 }) {
   const sessions = new Map(); // accountId → Promise<{ context, page, headless }>
 
@@ -219,12 +219,15 @@ export function createMuseDriver({
       )
       .catch(() => {});
 
-    const result = await page.evaluate(collectInPage, {
-      prefix,
-      full: message.replace(/\s+/g, " ").trim(),
-      before,
-      sel: { ...sel },
-    });
+    // Ảnh/video được giải mã sau vài giây (nhất là khi chạy ẩn). Kết luận "không có media" quá sớm
+    // sẽ khiến việc bị thử lại và tốn thêm một lượt, nên chờ thêm một lúc trước khi bỏ cuộc.
+    const collectArgs = { prefix, full: message.replace(/\s+/g, " ").trim(), before, sel: { ...sel } };
+    let result = await page.evaluate(collectInPage, collectArgs);
+    for (const deadline = Date.now() + lateMediaMs; !result.media.length && Date.now() < deadline; ) {
+      await page.waitForTimeout(1000);
+      await page.evaluate(scrollChatToBottomInPage, sel.CHAT_LOG);
+      result = await page.evaluate(collectInPage, collectArgs);
+    }
     return {
       media: result.media
         .filter((m) => EXT_BY_MIME[m.mime])

@@ -32,7 +32,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   delayMinSec: 20,
   delayMaxSec: 60,
   dailyCapPerAccount: 0,
-  headless: false,
+  // Việc chạy trong Chrome ẩn để không bật cửa sổ khi bạn đang dùng máy; cửa sổ chỉ hiện lúc đăng nhập.
+  headless: true,
   imageTimeoutMin: 3,
   videoTimeoutMin: 6,
   maxRetries: 2,

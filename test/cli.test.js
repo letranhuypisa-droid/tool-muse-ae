@@ -212,3 +212,15 @@ test("help lists the commands", async () => {
   assert.equal(r.code, 0);
   for (const cmd of ["start", "status", "add", "batch", "wait", "jobs", "accounts"]) assert.match(r.out, new RegExp(cmd));
 });
+
+test("retry puts a failed job back in the queue", async (t) => {
+  const app = await startTestApp();
+  t.after(app.close);
+  const [job] = app.jobs.enqueue({ type: "image", prompt: "x" });
+  app.jobs.update(job.id, { status: "failed", error: "boom" });
+  const r = await cli(["retry", job.id], { baseUrl: app.base });
+  assert.equal(r.code, 0, r.err);
+  assert.equal(app.jobs.get(job.id).status, "queued");
+  const again = await cli(["retry", job.id], { baseUrl: app.base });
+  assert.equal(again.code, 1);
+});

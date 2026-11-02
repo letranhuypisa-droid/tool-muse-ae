@@ -22,6 +22,7 @@ before(async () => {
     getSettings: () => normalizeSettings({ headless: true }),
     homeUrl: server.url,
     sendWaitMs: 3000,
+    lateMediaMs: 2000,
   });
 });
 
@@ -149,4 +150,21 @@ test("waits for the attachment upload before sending", async () => {
   assert.equal(r.media.length, 1);
   assert.equal(r.media[0].kind, "video");
   await driver.close("acc_upload");
+});
+
+test("media that shows up a few seconds late is still collected (no wasted retry)", async () => {
+  const d = createMuseDriver({
+    profilesDir: path.join(dir, "profiles"),
+    errorsDir: path.join(dir, "errors"),
+    getSettings: () => normalizeSettings({ headless: true }),
+    homeUrl: server.url + "?slowmedia",
+    sendWaitMs: 3000,
+  });
+  try {
+    const r = await d.runTurn("acc_slow", { message: "Tạo ngay 1 video: thuyền", files: [], timeoutMs: 20_000, jobId: "job_slow" });
+    assert.equal(r.media.length, 1);
+    assert.equal(r.media[0].kind, "video");
+  } finally {
+    await d.closeAll();
+  }
 });

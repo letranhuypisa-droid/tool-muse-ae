@@ -14,7 +14,7 @@ test("normalizeSettings fills defaults", () => {
   assert.equal(s.delayMinSec, 20);
   assert.equal(s.delayMaxSec, 60);
   assert.equal(s.dailyCapPerAccount, 0);
-  assert.equal(s.headless, false);
+  assert.equal(s.headless, true, "việc chạy ẩn, cửa sổ chỉ hiện khi đăng nhập");
   assert.equal(s.imageTimeoutMin, 3);
   assert.equal(s.videoTimeoutMin, 6);
   assert.equal(s.maxRetries, 2);
@@ -35,7 +35,7 @@ test("normalizeSettings clamps and repairs", () => {
 test("normalizeSettings ignores garbage types", () => {
   const s = normalizeSettings({ concurrency: "abc", headless: "yes", cooldownHours: null });
   assert.equal(s.concurrency, 3);
-  assert.equal(s.headless, false);
+  assert.equal(s.headless, true);
   assert.equal(s.cooldownHours, 24);
 });
 

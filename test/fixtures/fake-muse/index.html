@@ -101,6 +101,7 @@
         return;
       }
       reply.textContent = "Xong rồi";
+      if (params.has("slowmedia")) await new Promise((r) => setTimeout(r, 5000));
 
       if (text.includes("video")) {
         const url = URL.createObjectURL(await (await fetch("/sample.mp4")).blob());
