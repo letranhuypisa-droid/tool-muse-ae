@@ -21,6 +21,18 @@ async function launch(profileDir, headless) {
 
 const firstLine = (message) => message.split("\n")[0].replace(/\s+/g, " ").trim().slice(0, 60);
 
+// Chạy trong trang: cuộn khung chat (và mọi khung cuộn bọc nó) xuống cuối. Với chat dài, muse.ai mở trang
+// ở chỗ đọc dở và chỉ vẽ tin nhắn mới khi đã cuộn xuống cuối (trước đó chỉ hiện nút "N messages").
+function scrollChatToBottomInPage(log) {
+  let el = document.querySelector(log);
+  while (el) {
+    if (el.scrollHeight > el.clientHeight + 1) el.scrollTop = el.scrollHeight;
+    el = el.parentElement;
+  }
+  const doc = document.scrollingElement;
+  if (doc) doc.scrollTop = doc.scrollHeight;
+}
+
 // Chạy trong trang: số phần tử "lá" trong khung chat chứa đoạn đầu tin nhắn, và ô chat còn chữ hay không.
 function sendStateInPage({ prefix, log, composer }) {
   const norm = (s) => (s || "").replace(/\s+/g, " ").trim();
@@ -149,6 +161,7 @@ export function createMuseDriver({
 
   async function turnOnPage(page, { message, files = [], timeoutMs }) {
     if (!(await hasComposer(page))) throw new MuseError("NOT_LOGGED_IN", "Tài khoản chưa đăng nhập muse.ai");
+    await page.evaluate(scrollChatToBottomInPage, sel.CHAT_LOG);
     const before = await page.evaluate(
       ({ s }) => [
         ...[...document.querySelectorAll(s.VIDEO_WRAPPER)].map((w) => w.getAttribute(s.VIDEO_SRC_ATTR)),
@@ -183,7 +196,12 @@ export function createMuseDriver({
     } catch {
       throw new MuseError("TIMEOUT", `Muse chưa trả kết quả sau ${Math.round(timeoutMs / 60000)} phút`);
     }
-    await page.waitForTimeout(settleMs);
+    // Cuộn xuống cuối vài lần trong lúc chờ để muse.ai vẽ hết câu trả lời mới (ảnh/video có thể tải sau).
+    for (let i = 0; i < 3; i++) {
+      await page.evaluate(scrollChatToBottomInPage, sel.CHAT_LOG);
+      await page.waitForTimeout(settleMs / 3);
+    }
+    await page.evaluate(scrollChatToBottomInPage, sel.CHAT_LOG);
     await page
       .waitForFunction(
         ({ s }) => {

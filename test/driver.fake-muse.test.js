@@ -125,3 +125,21 @@ test("a message that never gets sent throws instead of returning old media", asy
   assert.equal(await page.evaluate(() => window.__sends), 1);
   await driver.close("acc_stale");
 });
+
+test("long chat opened mid-history: scrolls down so the new reply is read", async () => {
+  const d = createMuseDriver({
+    profilesDir: path.join(dir, "profiles"),
+    errorsDir: path.join(dir, "errors"),
+    getSettings: () => normalizeSettings({ headless: true }),
+    homeUrl: server.url + "?lazy",
+    sendWaitMs: 3000,
+  });
+  try {
+    const r = await d.runTurn("acc_lazy", { message: "Tạo ngay 1 ảnh: bãi cọc", files: [], timeoutMs: 20_000, jobId: "job_lazy" });
+    assert.equal(r.media.length, 1);
+    assert.equal(r.media[0].kind, "image");
+    assert.match(r.replyText, /Xong rồi/);
+  } finally {
+    await d.closeAll();
+  }
+});

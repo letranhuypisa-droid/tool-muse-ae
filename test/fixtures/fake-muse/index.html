@@ -3,7 +3,8 @@
 <head><meta charset="utf-8"><title>fake muse</title></head>
 <body>
   <!-- Bắt chước đúng các selector đã dò được trên muse.ai ngày 2026-11-02. -->
-  <div role="log" id="log"></div>
+  <div id="scroller"><div role="log" id="log"></div></div>
+  <button id="pill" hidden>new messages</button>
   <div id="composer">
     <div id="previews"></div>
     <input type="file" multiple id="file" style="position:absolute;width:1px;height:1px;opacity:0">
@@ -15,6 +16,33 @@
     if (params.has("loggedout")) document.getElementById("composer").remove();
 
     const log = document.getElementById("log");
+    const scroller = document.getElementById("scroller");
+    const pill = document.getElementById("pill");
+
+    // ?lazy: giống muse.ai thật với chat dài — trang mở ở chỗ đọc dở, tin nhắn mới chỉ được vẽ
+    // khi khung chat được cuộn xuống cuối (trước đó chỉ hiện nút "N messages").
+    const lazy = params.has("lazy");
+    const pending = [];
+    if (lazy) {
+      scroller.style.cssText = "height:300px;overflow:auto";
+      const history = document.createElement("div");
+      history.style.height = "3000px";
+      history.textContent = "lịch sử chat cũ";
+      log.append(history);
+      scroller.scrollTop = 0;
+    }
+    const atBottom = () => scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 10;
+    function show(...nodes) {
+      if (!lazy || atBottom()) return log.append(...nodes);
+      pending.push(...nodes);
+      pill.hidden = false;
+      pill.textContent = pending.length + " messages";
+    }
+    scroller.addEventListener("scroll", () => {
+      if (!lazy || !atBottom() || !pending.length) return;
+      log.append(...pending.splice(0));
+      pill.hidden = true;
+    });
     const msg = document.getElementById("msg");
     const file = document.getElementById("file");
     const previews = document.getElementById("previews");
@@ -52,11 +80,10 @@
       reply.className = "assistant";
       if (text.includes("LIMIT")) {
         reply.textContent = "You've reached your daily limit";
-        log.append(reply);
+        show(reply);
         return;
       }
       reply.textContent = "Xong rồi";
-      log.append(reply);
 
       if (text.includes("video")) {
         const url = URL.createObjectURL(await (await fetch("/sample.mp4")).blob());
@@ -67,7 +94,7 @@
         const video = document.createElement("video");
         video.src = url;
         wrap.append(video);
-        log.append(wrap);
+        show(reply, wrap);
       } else {
         const url = URL.createObjectURL(await (await fetch("/sample.png")).blob());
         const btn = document.createElement("button");
@@ -75,7 +102,7 @@
         const img = document.createElement("img");
         img.src = url;
         btn.append(img);
-        log.append(btn);
+        show(reply, btn);
       }
     });
   </script>
