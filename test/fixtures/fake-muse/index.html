@@ -1,0 +1,82 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>fake muse</title></head>
+<body>
+  <!-- Bắt chước đúng các selector đã dò được trên muse.ai ngày 2026-11-02. -->
+  <div role="log" id="log"></div>
+  <div id="composer">
+    <div id="previews"></div>
+    <input type="file" multiple id="file" style="position:absolute;width:1px;height:1px;opacity:0">
+    <div><textarea placeholder="Message" id="msg"></textarea></div>
+  </div>
+  <script>
+    window.__sends = 0;
+    const params = new URLSearchParams(location.search);
+    if (params.has("loggedout")) document.getElementById("composer").remove();
+
+    const log = document.getElementById("log");
+    const msg = document.getElementById("msg");
+    const file = document.getElementById("file");
+    const previews = document.getElementById("previews");
+
+    file?.addEventListener("change", () => {
+      for (const f of file.files) {
+        const img = document.createElement("img");
+        img.src = URL.createObjectURL(f);
+        previews.append(img);
+      }
+    });
+
+    msg?.addEventListener("keydown", async (e) => {
+      if (e.key !== "Enter" || e.shiftKey) return;
+      e.preventDefault();
+      const text = msg.value;
+      msg.value = "";
+      previews.innerHTML = "";
+      window.__sends++;
+
+      const user = document.createElement("div");
+      user.className = "user";
+      user.textContent = text;
+      log.append(user);
+
+      const stop = document.createElement("button");
+      stop.setAttribute("aria-label", "Stop");
+      stop.textContent = "■";
+      document.body.append(stop);
+      await new Promise((r) => setTimeout(r, 1500));
+      stop.remove();
+
+      const reply = document.createElement("div");
+      reply.className = "assistant";
+      if (text.includes("LIMIT")) {
+        reply.textContent = "You've reached your daily limit";
+        log.append(reply);
+        return;
+      }
+      reply.textContent = "Xong rồi";
+      log.append(reply);
+
+      if (text.includes("video")) {
+        const url = URL.createObjectURL(await (await fetch("/sample.mp4")).blob());
+        const wrap = document.createElement("div");
+        wrap.setAttribute("data-hatch-video-wrapper", "true");
+        wrap.setAttribute("data-hatch-video-src", url);
+        wrap.setAttribute("aria-busy", "false");
+        const video = document.createElement("video");
+        video.src = url;
+        wrap.append(video);
+        log.append(wrap);
+      } else {
+        const url = URL.createObjectURL(await (await fetch("/sample.png")).blob());
+        const btn = document.createElement("button");
+        btn.setAttribute("data-pel-click", "chat_media_click");
+        const img = document.createElement("img");
+        img.src = url;
+        btn.append(img);
+        log.append(btn);
+      }
+    });
+  </script>
+</body>
+</html>
