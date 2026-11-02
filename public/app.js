@@ -27,8 +27,19 @@ function esc(value) {
   return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 }
 
+const OFFLINE = "Không kết nối được tới tool. Kiểm tra cửa sổ Muse Manager (màn hình đen) còn mở không, rồi tải lại trang.";
+
+// fetch() chỉ báo "Failed to fetch" khi tool đã tắt hoặc đang khởi động lại: đổi thành lời dễ hiểu.
+async function request(url, options) {
+  try {
+    return await fetch(url, options);
+  } catch {
+    throw new Error(OFFLINE);
+  }
+}
+
 async function api(method, url, body) {
-  const res = await fetch(url, {
+  const res = await request(url, {
     method,
     headers: body ? { "content-type": "application/json" } : {},
     body: body ? JSON.stringify(body) : undefined,
@@ -337,7 +348,7 @@ async function uploadFiles(files) {
   if (refs.length + files.length > 9) throw new Error("Tối đa 9 ảnh tham chiếu");
   const form = new FormData();
   for (const f of files) form.append("files", f);
-  const res = await fetch("/api/uploads", { method: "POST", body: form });
+  const res = await request("/api/uploads", { method: "POST", body: form });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error);
   refs.push(...data);

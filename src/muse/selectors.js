@@ -4,6 +4,8 @@ export const HOME_URL = "https://muse.ai/";
 export const COMPOSER = 'textarea[placeholder="Message"]';
 export const FILE_INPUT = 'input[type="file"]';
 export const STOP_BUTTON = 'button[aria-label="Stop"]';
+// Bị khóa (disabled) trong lúc ảnh đính kèm đang tải lên; gửi lúc đó muse.ai báo "Delivery not confirmed".
+export const SEND_BUTTON = 'button[aria-label="Send"]';
 export const CHAT_LOG = '[role="log"]';
 export const VIDEO_WRAPPER = '[data-hatch-video-wrapper="true"]';
 export const VIDEO_SRC_ATTR = "data-hatch-video-src";

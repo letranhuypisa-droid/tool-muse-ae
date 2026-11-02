@@ -143,3 +143,10 @@ test("long chat opened mid-history: scrolls down so the new reply is read", asyn
     await d.closeAll();
   }
 });
+
+test("waits for the attachment upload before sending", async () => {
+  const r = await driver.runTurn("acc_upload", { message: "Tạo ngay 1 video: nối tiếp", files: [png], timeoutMs: 20_000, jobId: "job_upload" });
+  assert.equal(r.media.length, 1);
+  assert.equal(r.media[0].kind, "video");
+  await driver.close("acc_upload");
+});

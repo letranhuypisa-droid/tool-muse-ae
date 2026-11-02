@@ -108,3 +108,12 @@ test("accounts tab shows state and adds an account", async (t) => {
   await card.getByRole("button", { name: "Đã đăng nhập" }).click();
   await card.getByText("Sẵn sàng").waitFor({ timeout: 5000 });
 });
+
+test("shows a Vietnamese message when the tool is not reachable", async (t) => {
+  const { app, page } = await setup(t);
+  await page.goto(app.base);
+  await page.getByLabel("Prompt", { exact: true }).fill("mèo");
+  await app.close();
+  await page.getByRole("button", { name: "Thêm vào hàng đợi" }).click();
+  await page.getByText("Không kết nối được tới tool").waitFor({ timeout: 5000 });
+});

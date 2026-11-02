@@ -94,7 +94,7 @@ async function collectInPage({ prefix, full, before, sel }) {
 
 export function createMuseDriver({
   profilesDir, errorsDir, getSettings, homeUrl = sel.HOME_URL,
-  loginWaitMs = 20_000, stopAppearMs = 30_000, settleMs = 3000, sendWaitMs = 15_000,
+  loginWaitMs = 20_000, stopAppearMs = 30_000, settleMs = 3000, sendWaitMs = 15_000, uploadWaitMs = 120_000,
 }) {
   const sessions = new Map(); // accountId → Promise<{ context, page, headless }>
 
@@ -177,6 +177,11 @@ export function createMuseDriver({
     const sendBefore = await page.evaluate(sendStateInPage, probe);
     const composer = page.locator(sel.COMPOSER).first();
     await composer.fill(message);
+    // Chờ ảnh đính kèm tải lên xong (nút Send hết bị khóa) rồi mới gửi.
+    const ready = await page
+      .waitForFunction((s) => !document.querySelector(s)?.disabled, sel.SEND_BUTTON, { timeout: uploadWaitMs })
+      .then(() => true, () => false);
+    if (!ready) throw new MuseError("BROWSER", "Ảnh đính kèm chưa tải lên muse.ai xong");
     await composer.press("Enter");
 
     // Phải chắc tin nhắn đã đi (hiện thêm trong khung chat, hoặc ô chat đã trống). Nếu không,

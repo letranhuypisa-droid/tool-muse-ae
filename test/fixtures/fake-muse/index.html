@@ -9,6 +9,7 @@
     <div id="previews"></div>
     <input type="file" multiple id="file" style="position:absolute;width:1px;height:1px;opacity:0">
     <div><textarea placeholder="Message" id="msg"></textarea></div>
+    <button aria-label="Send" id="send">↑</button>
   </div>
   <script>
     window.__sends = 0;
@@ -47,18 +48,34 @@
     const file = document.getElementById("file");
     const previews = document.getElementById("previews");
 
+    // Như muse.ai thật: ảnh xem trước hiện ngay, nhưng nút Send bị khóa tới khi ảnh tải lên xong.
+    const send = document.getElementById("send");
+    window.__undelivered = 0;
     file?.addEventListener("change", () => {
       for (const f of file.files) {
         const img = document.createElement("img");
         img.src = URL.createObjectURL(f);
         previews.append(img);
       }
+      send.disabled = true;
+      setTimeout(() => (send.disabled = false), 1500);
     });
 
     msg?.addEventListener("keydown", async (e) => {
       if (e.key !== "Enter" || e.shiftKey) return;
       e.preventDefault();
       if (window.__blockSend) return; // giả lập muse không nhận Enter (đang tải ảnh, có hộp thoại…)
+      if (send.disabled) {
+        // Gửi khi ảnh chưa tải xong: tin nhắn hiện ra nhưng không tới được Muse.
+        const lost = document.createElement("div");
+        lost.className = "user";
+        lost.textContent = msg.value + " — Delivery not confirmed";
+        log.append(lost);
+        msg.value = "";
+        previews.innerHTML = "";
+        window.__undelivered++;
+        return;
+      }
       const text = msg.value;
       msg.value = "";
       previews.innerHTML = "";
