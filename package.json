@@ -9,6 +9,7 @@
   },
   "scripts": {
     "start": "node src/main.js",
+    "muse": "node src/cli.js",
     "test": "node --test --test-concurrency=1 \"test/**/*.test.js\""
   },
   "dependencies": {

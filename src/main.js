@@ -49,7 +49,11 @@ export async function startServer({ root = ROOT, port = Number(process.env.PORT)
   };
 }
 
-const openBrowser = (url) => spawn("cmd", ["/c", "start", "", url], { detached: true, stdio: "ignore" }).unref();
+// --no-open: chạy ngầm (lệnh "npm run muse -- start", hoặc khi Claude bật tool), không mở tab trình duyệt.
+const openBrowser = (url) => {
+  if (process.argv.includes("--no-open")) return;
+  spawn("cmd", ["/c", "start", "", url], { detached: true, stdio: "ignore" }).unref();
+};
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   const port = Number(process.env.PORT) || 3000;
