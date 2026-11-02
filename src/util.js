@@ -8,6 +8,13 @@ export class ValidationError extends Error {
   }
 }
 
+export class NotFoundError extends Error {
+  constructor(message = "Không tìm thấy") {
+    super(message);
+    this.name = "NotFoundError";
+  }
+}
+
 export function newId(prefix) {
   return `${prefix}_${crypto.randomBytes(4).toString("hex")}`;
 }
