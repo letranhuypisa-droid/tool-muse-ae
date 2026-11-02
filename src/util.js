@@ -17,6 +17,21 @@ export function localDate(d) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+// Tên file an toàn trên Windows: bỏ dấu tiếng Việt, chỉ giữ a-z0-9 và dấu gạch.
+export function slugify(text, maxLen = 40) {
+  const ascii = String(text)
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[đĐ]/g, "d")
+    .toLowerCase();
+  const slug = ascii
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, maxLen)
+    .replace(/-+$/, "");
+  return slug || "untitled";
+}
+
 export function randomBetween(min, max, random = Math.random) {
   return min + (max - min) * random();
 }
