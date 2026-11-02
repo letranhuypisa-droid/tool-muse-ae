@@ -97,3 +97,19 @@ test("mutations emit change", () => {
   bus.off("change", on);
   assert.ok(n > 0);
 });
+
+test("refreshCooldowns does not rewrite the file when nothing changed", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "muse acc "));
+  const real = createJsonStore(path.join(dir, "accounts.json"), []);
+  let writes = 0;
+  const counting = {
+    read: real.read,
+    write: (v) => { writes++; real.write(v); },
+    update(fn) { const n = fn(real.read()); this.write(n); return n; },
+  };
+  const svc = createAccountService({ store: counting, profilesDir: dir });
+  svc.create("A");
+  writes = 0;
+  svc.refreshCooldowns();
+  assert.equal(writes, 0);
+});

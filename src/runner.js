@@ -28,7 +28,10 @@ export function createRunner({ driver, jobs, paths, getSettings, ffmpeg = defaul
     return dir;
   };
 
-  async function runImage(job, account) {
+  // Người dùng có thể bấm Hủy bất cứ lúc nào: kiểm tra lại trước mỗi bước ghi kết quả.
+  const stopped = (job, signal) => signal?.aborted || jobs.get(job.id)?.status === "cancelled";
+
+  async function runImage(job, account, signal) {
     const settings = getSettings();
     jobs.update(job.id, { progress: { clip: 1, totalClips: 1 } });
     const message = buildMessage(settings.messageTemplates, {
@@ -39,6 +42,7 @@ export function createRunner({ driver, jobs, paths, getSettings, ffmpeg = defaul
     });
     const images = turn.media.filter((m) => m.kind === "image");
     if (!images.length) return noMedia(turn.replyText);
+    if (stopped(job, signal)) return ABORTED;
     const dir = dayDir();
     const outputs = images.map((img, i) => {
       const file = path.join(dir, `${job.id}_${i + 1}.${img.ext}`);
@@ -55,7 +59,7 @@ export function createRunner({ driver, jobs, paths, getSettings, ffmpeg = defaul
     const rawFiles = [...job.rawFiles];
 
     for (let k = rawFiles.length + 1; k <= totalClips; k++) {
-      if (signal?.aborted) return ABORTED;
+      if (stopped(job, signal)) return ABORTED;
       jobs.update(job.id, { progress: { clip: k, totalClips } });
       let files = job.refImages;
       if (k > 1) {
@@ -76,10 +80,11 @@ export function createRunner({ driver, jobs, paths, getSettings, ffmpeg = defaul
       jobs.update(job.id, { rawFiles: [...rawFiles], replyText: turn.replyText });
     }
 
-    if (signal?.aborted) return ABORTED;
+    if (stopped(job, signal)) return ABORTED;
     jobs.update(job.id, { status: "postprocessing", progress: { clip: totalClips, totalClips } });
     const output = path.join(dayDir(), `${job.id}_${slugify(job.prompt)}.mp4`);
-    await ffmpeg.finalizeVideo({ inputs: rawFiles, output, trimSec, upscale1080: job.upscale1080 });
+    await ffmpeg.finalizeVideo({ inputs: rawFiles, output, trimSec, upscale1080: job.upscale1080, signal });
+    if (stopped(job, signal)) return ABORTED;
     jobs.update(job.id, { status: "done", outputs: [output], error: null });
     return { ok: true };
   }
@@ -88,8 +93,9 @@ export function createRunner({ driver, jobs, paths, getSettings, ffmpeg = defaul
     async runJob(job, account, { signal } = {}) {
       try {
         if (signal?.aborted) return ABORTED;
-        return job.type === "image" ? await runImage(job, account) : await runVideo(job, account, signal);
+        return job.type === "image" ? await runImage(job, account, signal) : await runVideo(job, account, signal);
       } catch (err) {
+        if (signal?.aborted) return ABORTED;
         if (err instanceof MuseError) {
           return { ok: false, code: err.code === "NOT_LOGGED_IN" ? "NOT_LOGGED_IN" : "TRANSIENT", message: err.message };
         }

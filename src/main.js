@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import http from "node:http";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { createAccountService } from "./accounts.js";
@@ -20,17 +21,20 @@ export async function startServer({ root = ROOT, port = Number(process.env.PORT)
     profilesDir: paths.profiles,
   });
   const jobs = createJobService({ store: createJsonStore(path.join(paths.data, "jobs.json"), []) });
-  jobs.recoverOnStartup();
 
   const museDriver = driver ?? createMuseDriver({ profilesDir: paths.profiles, errorsDir: paths.errors, getSettings });
   const runner = createRunner({ driver: museDriver, jobs, paths, getSettings });
   const scheduler = createScheduler({ accounts, jobs, getSettings, runJob: runner.runJob, driver: museDriver });
   const app = createApp({ accounts, jobs, scheduler, driver: museDriver, settings, paths });
 
-  const server = await new Promise((resolve, reject) => {
-    const s = app.listen(port, "127.0.0.1", () => resolve(s));
-    s.once("error", reject);
+  // Giữ được cổng rồi mới đụng vào dữ liệu: nếu tool đã chạy sẵn, bản thứ hai phải dừng
+  // trước khi kịp đổi trạng thái hàng đợi của bản đang chạy.
+  const server = http.createServer(app);
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(port, "127.0.0.1", resolve);
   });
+  jobs.recoverOnStartup();
   scheduler.start();
 
   const url = `http://localhost:${server.address().port}`;

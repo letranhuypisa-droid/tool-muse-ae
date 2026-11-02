@@ -170,3 +170,31 @@ test("driver.close is always called", async () => {
   assert.equal(outcome.code, "TRANSIENT");
   assert.deepEqual(driver.closed, ["acc_1"]);
 });
+
+test("job cancelled during a turn is not marked done", async () => {
+  let jobsRef;
+  const { jobs, run } = setup((accountId, req) => {
+    const [j] = jobsRef.list();
+    jobsRef.update(j.id, { status: "cancelled" });
+    return video();
+  });
+  jobsRef = jobs;
+  const [job] = jobs.enqueue({ type: "video", prompt: "x", durationSec: 5 });
+  const outcome = await run(job);
+  assert.equal(outcome.message, "Đã hủy");
+  assert.equal(jobs.get(job.id).status, "cancelled");
+  assert.deepEqual(jobs.get(job.id).outputs, []);
+});
+
+test("image job cancelled during a turn is not marked done", async () => {
+  let jobsRef;
+  const { jobs, run } = setup(() => {
+    const [j] = jobsRef.list();
+    jobsRef.update(j.id, { status: "cancelled" });
+    return image();
+  });
+  jobsRef = jobs;
+  const [job] = jobs.enqueue({ type: "image", prompt: "x" });
+  await run(job);
+  assert.equal(jobs.get(job.id).status, "cancelled");
+});

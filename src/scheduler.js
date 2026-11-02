@@ -34,27 +34,45 @@ export function createScheduler({
     accounts.setRest(accountId, new Date(now().getTime() + ms).toISOString());
   }
 
+  // Luôn cập nhật việc trước tài khoản: nếu ghi file tài khoản lỗi, việc vẫn không bị kẹt ở "running".
   function applyOutcome(jobId, accountId, outcome) {
     const settings = getSettings();
     const job = jobs.get(jobId);
-    if (!job || job.status === "cancelled") {
+    if (!job || outcome.ok) {
       if (accounts.get(accountId)) rest(accountId, settings);
       return;
     }
-    if (outcome.ok) {
-      rest(accountId, settings);
-      return;
-    }
+    const retryOrFail = () => {
+      const attempts = job.attempts + 1;
+      const failed = attempts > settings.maxRetries;
+      jobs.update(jobId, {
+        status: failed ? "failed" : "queued",
+        accountId: failed ? job.accountId : null,
+        attempts,
+        error: outcome.message,
+        replyText: outcome.replyText ?? job.replyText,
+      });
+    };
     switch (outcome.code) {
       case "LIMIT": {
+        // Hai tài khoản khác nhau cùng "hết lượt" với một việc: nhiều khả năng là đoán nhầm từ câu trả lời,
+        // không cho thêm tài khoản nào nghỉ 24 giờ nữa mà tính như một lần thử lỗi.
+        const hits = job.limitHits ?? [];
+        if (hits.some((id) => id !== accountId)) {
+          retryOrFail();
+          break;
+        }
+        jobs.update(jobId, {
+          status: "queued", accountId: null, error: outcome.message,
+          replyText: outcome.replyText ?? null, limitHits: [...new Set([...hits, accountId])],
+        });
         const until = new Date(now().getTime() + settings.cooldownHours * 3600e3).toISOString();
         accounts.setState(accountId, "cooldown", { cooldownUntil: until, lastError: outcome.message });
-        jobs.update(jobId, { status: "queued", accountId: null, error: outcome.message, replyText: outcome.replyText ?? null });
         return;
       }
       case "NOT_LOGGED_IN":
-        accounts.setState(accountId, "needs_login", { lastError: outcome.message });
         jobs.update(jobId, { status: "queued", accountId: null });
+        accounts.setState(accountId, "needs_login", { lastError: outcome.message });
         return;
       case "REFUSED":
         jobs.update(jobId, { status: "refused", error: outcome.message, replyText: outcome.replyText ?? null });
@@ -62,17 +80,8 @@ export function createScheduler({
       case "FFMPEG":
         jobs.update(jobId, { status: "failed", error: outcome.message });
         break;
-      default: {
-        const attempts = job.attempts + 1;
-        const failed = attempts > settings.maxRetries;
-        jobs.update(jobId, {
-          status: failed ? "failed" : "queued",
-          accountId: failed ? job.accountId : null,
-          attempts,
-          error: outcome.message,
-          replyText: outcome.replyText ?? job.replyText,
-        });
-      }
+      default:
+        retryOrFail();
     }
     rest(accountId, settings);
   }
@@ -82,16 +91,18 @@ export function createScheduler({
     jobs.update(job.id, { status: "running", accountId: account.id, error: null });
     accounts.recordJobStart(account.id);
     const fresh = jobs.get(job.id);
-    const done = Promise.resolve()
+    const entry = { accountId: account.id, controller };
+    entry.done = Promise.resolve()
       .then(() => runJob(fresh, accounts.get(account.id), { signal: controller.signal }))
       .catch((err) => ({ ok: false, code: "TRANSIENT", message: err?.message || String(err) }))
-      .then((outcome) => applyOutcome(job.id, account.id, outcome))
+      // Lượt đã bị hủy: việc có thể đã được "Thử lại" và đang chờ lượt mới, đừng ghi đè trạng thái của nó.
+      .then((outcome) => applyOutcome(job.id, account.id, controller.signal.aborted ? { ok: true } : outcome))
       .catch((err) => console.error("[scheduler]", err))
       .finally(() => {
-        running.delete(job.id);
+        if (running.get(job.id) === entry) running.delete(job.id);
         notifyChange();
       });
-    running.set(job.id, { accountId: account.id, controller, done });
+    running.set(job.id, entry);
   }
 
   async function tick() {
@@ -99,15 +110,20 @@ export function createScheduler({
     const settings = getSettings();
     let next = waiting;
     while (!paused && running.size < settings.concurrency) {
-      const job = jobs.nextQueued();
+      const job = jobs.nextQueued(new Set(running.keys()));
       if (!job) {
         next = null;
         break;
       }
+      const list = accounts.list();
+      // Tài khoản đang chạy việc, hoặc đang mở cửa sổ cho người dùng / kiểm tra đăng nhập.
       const busyIds = new Set([...running.values()].map((r) => r.accountId));
-      const account = pickAccount(accounts.list(), { settings, now: now(), busyIds, today: localDate(now()) });
+      for (const a of list) if (driver?.isOpen?.(a.id)) busyIds.add(a.id);
+      const ctx = { settings, now: now(), busyIds, today: localDate(now()) };
+      const account = pickAccount(list, ctx);
       if (!account) {
-        next = running.size === 0 ? "no_accounts" : null;
+        const resting = pickAccount(list.map((a) => ({ ...a, restUntil: null })), ctx);
+        next = running.size > 0 ? null : resting ? "resting" : "no_accounts";
         break;
       }
       next = null;

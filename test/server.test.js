@@ -6,6 +6,8 @@ import { startTestApp } from "./helpers/testApp.js";
 import { makeFixtureDir, makeImage } from "./helpers/fixtures.js";
 import { createFakeDriver } from "../src/muse/fakeDriver.js";
 import { localDate } from "../src/util.js";
+import { notifyChange } from "../src/events.js";
+import http from "node:http";
 
 let pngBytes;
 before(async () => {
@@ -199,4 +201,47 @@ test("library lists done outputs with /files urls that serve the file", async (t
   assert.equal(ref.status, 201);
   assert.ok(ref.body.path.startsWith(app.paths.uploads));
   assert.ok(fs.existsSync(ref.body.path));
+});
+
+function rawRequest(base, { method = "GET", path: p, headers }) {
+  const url = new URL(base);
+  return new Promise((resolve, reject) => {
+    const req = http.request({ host: url.hostname, port: url.port, method, path: p, headers }, (res) => {
+      res.resume();
+      res.on("end", () => resolve(res.statusCode));
+    });
+    req.on("error", reject);
+    req.end();
+  });
+}
+
+test("requests from foreign hosts or origins are refused", async (t) => {
+  const app = await startTestApp();
+  t.after(app.close);
+  const port = new URL(app.base).port;
+  assert.equal(await rawRequest(app.base, { path: "/api/state", headers: { host: `evil.example:${port}` } }), 403);
+  assert.equal(await rawRequest(app.base, {
+    method: "POST", path: "/api/queue/pause", headers: { host: `127.0.0.1:${port}`, origin: "https://evil.example" },
+  }), 403);
+  assert.equal(app.scheduler.status().paused, false);
+  assert.equal(await rawRequest(app.base, { path: "/api/state", headers: { host: `localhost:${port}` } }), 200);
+  assert.equal(await rawRequest(app.base, {
+    method: "POST", path: "/api/queue/pause", headers: { host: `localhost:${port}`, origin: `http://localhost:${port}` },
+  }), 204);
+});
+
+test("SSE survives a failing state read", async (t) => {
+  const app = await startTestApp();
+  t.after(app.close);
+  const controller = new AbortController();
+  const res = await fetch(`${app.base}/api/events`, { signal: controller.signal });
+  const reader = res.body.getReader();
+  await reader.read();
+  const original = app.accounts.list;
+  app.accounts.list = () => { throw Object.assign(new Error("EBUSY"), { code: "EBUSY" }); };
+  notifyChange();
+  await new Promise((r) => setTimeout(r, 400));
+  app.accounts.list = original;
+  assert.equal((await app.api("GET", "/api/state")).status, 200);
+  controller.abort();
 });

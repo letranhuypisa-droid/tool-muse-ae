@@ -11,14 +11,17 @@ export class FfmpegError extends Error {
   }
 }
 
-function run(cmd, args) {
+function run(cmd, args, { signal } = {}) {
   return new Promise((resolve, reject) => {
-    const p = spawn(cmd, args, { windowsHide: true });
+    if (signal?.aborted) return reject(new FfmpegError("Đã hủy"));
+    const p = spawn(cmd, args, { windowsHide: true, signal });
     let out = "";
     let err = "";
     p.stdout.on("data", (d) => (out += d));
     p.stderr.on("data", (d) => (err = (err + d).slice(-20000)));
-    p.on("error", (e) => reject(new FfmpegError(`Không chạy được ${cmd}: ${e.message}`)));
+    p.on("error", (e) =>
+      reject(new FfmpegError(e.name === "AbortError" ? "Đã hủy" : `Không chạy được ${cmd}: ${e.message}`)),
+    );
     p.on("close", (code) => {
       if (code === 0) return resolve(out);
       const tail = err.trim().split(/\r?\n/).slice(-20).join("\n");
@@ -33,6 +36,16 @@ function parseRate(rate) {
   return Number.isFinite(fps) && fps > 0 ? Math.round(fps * 1000) / 1000 : 0;
 }
 
+// r_frame_rate có thể là 90000/1 với video tốc độ khung hình thay đổi: dùng avg_frame_rate và chặn giá trị vô lý,
+// nếu không bộ lọc fps sẽ sinh ra hàng triệu khung hình.
+export function streamFps(stream) {
+  for (const rate of [stream?.avg_frame_rate, stream?.r_frame_rate]) {
+    const fps = parseRate(rate);
+    if (fps >= 1 && fps <= 120) return fps;
+  }
+  return 30;
+}
+
 export async function probe(file) {
   const json = JSON.parse(await run(FFPROBE, ["-v", "error", "-show_streams", "-show_format", "-of", "json", file]));
   const video = json.streams.find((s) => s.codec_type === "video");
@@ -41,7 +54,7 @@ export async function probe(file) {
     width: video.width,
     height: video.height,
     duration: Number(json.format?.duration) || 0,
-    fps: parseRate(video.r_frame_rate),
+    fps: streamFps(video),
     hasAudio: json.streams.some((s) => s.codec_type === "audio"),
   };
 }
@@ -56,11 +69,11 @@ export function targetSize(width, height, upscale1080) {
 
 // Đọc giây cuối và ghi đè liên tục ra một file ảnh: file còn lại chính là khung hình cuối.
 export async function extractLastFrame(input, outputPng) {
-  await run(FFMPEG, ["-hide_banner", "-loglevel", "error", "-sseof", "-1", "-i", input, "-update", "1", "-y", outputPng]);
+  await run(FFMPEG, ["-nostdin", "-hide_banner", "-loglevel", "error", "-sseof", "-1", "-i", input, "-update", "1", "-y", outputPng]);
 }
 
 export function buildFinalizeArgs({ inputs, output, width, height, fps, trimSec, upscale1080 }) {
-  const args = ["-hide_banner", "-loglevel", "error"];
+  const args = ["-nostdin", "-hide_banner", "-loglevel", "error"];
   for (const input of inputs) args.push("-i", input.path);
 
   const filters = [];
@@ -102,7 +115,7 @@ export function buildFinalizeArgs({ inputs, output, width, height, fps, trimSec,
   return args;
 }
 
-export async function finalizeVideo({ inputs, output, trimSec, upscale1080 }) {
+export async function finalizeVideo({ inputs, output, trimSec, upscale1080, signal }) {
   const probed = [];
   for (const file of inputs) {
     const p = await probe(file);
@@ -119,7 +132,7 @@ export async function finalizeVideo({ inputs, output, trimSec, upscale1080 }) {
     upscale1080,
   });
   try {
-    await run(FFMPEG, args);
+    await run(FFMPEG, args, { signal });
   } catch (err) {
     fs.rmSync(output, { force: true });
     throw err;

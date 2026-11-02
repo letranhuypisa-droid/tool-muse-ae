@@ -21,6 +21,20 @@ async function launch(profileDir, headless) {
 
 const firstLine = (message) => message.split("\n")[0].replace(/\s+/g, " ").trim().slice(0, 60);
 
+// Chạy trong trang: số phần tử "lá" trong khung chat chứa đoạn đầu tin nhắn, và ô chat còn chữ hay không.
+function sendStateInPage({ prefix, log, composer }) {
+  const norm = (s) => (s || "").replace(/\s+/g, " ").trim();
+  const root = document.querySelector(log) || document.body;
+  let anchors = 0;
+  for (const el of root.querySelectorAll("*")) {
+    if (!norm(el.textContent).includes(prefix)) continue;
+    if ([...el.children].some((c) => norm(c.textContent).includes(prefix))) continue;
+    anchors += 1;
+  }
+  const box = document.querySelector(composer);
+  return { anchors, composerEmpty: !box || box.value.trim() === "" };
+}
+
 // Chạy trong trang: tìm tin nhắn mình vừa gửi (anchor) rồi lấy media nằm sau nó.
 async function collectInPage({ prefix, full, before, sel }) {
   const norm = (s) => (s || "").replace(/\s+/g, " ").trim();
@@ -68,7 +82,7 @@ async function collectInPage({ prefix, full, before, sel }) {
 
 export function createMuseDriver({
   profilesDir, errorsDir, getSettings, homeUrl = sel.HOME_URL,
-  loginWaitMs = 20_000, stopAppearMs = 30_000, settleMs = 3000,
+  loginWaitMs = 20_000, stopAppearMs = 30_000, settleMs = 3000, sendWaitMs = 15_000,
 }) {
   const sessions = new Map(); // accountId → Promise<{ context, page, headless }>
 
@@ -145,9 +159,22 @@ export function createMuseDriver({
     if (files.length) await attach(page, files);
 
     // fill() đặt nguyên văn bản (kể cả xuống dòng) mà không gõ phím Enter giữa chừng.
+    const prefix = firstLine(message);
+    const probe = { prefix, log: sel.CHAT_LOG, composer: sel.COMPOSER };
+    const sendBefore = await page.evaluate(sendStateInPage, probe);
     const composer = page.locator(sel.COMPOSER).first();
     await composer.fill(message);
     await composer.press("Enter");
+
+    // Phải chắc tin nhắn đã đi (hiện thêm trong khung chat, hoặc ô chat đã trống). Nếu không,
+    // mọi media nằm sau một tin nhắn cũ giống hệt sẽ bị lấy nhầm làm kết quả mới.
+    let sent = false;
+    for (const deadline = Date.now() + sendWaitMs; !sent && Date.now() < deadline; ) {
+      const sendNow = await page.evaluate(sendStateInPage, probe);
+      sent = sendNow.anchors > sendBefore.anchors || sendNow.composerEmpty;
+      if (!sent) await page.waitForTimeout(250);
+    }
+    if (!sent) throw new MuseError("BROWSER", "Không gửi được tin nhắn cho Muse (ô chat không nhận lệnh gửi)");
 
     const stop = page.locator(sel.STOP_BUTTON).first();
     await stop.waitFor({ state: "visible", timeout: stopAppearMs }).catch(() => {});
@@ -170,7 +197,7 @@ export function createMuseDriver({
       .catch(() => {});
 
     const result = await page.evaluate(collectInPage, {
-      prefix: firstLine(message),
+      prefix,
       full: message.replace(/\s+/g, " ").trim(),
       before,
       sel: { ...sel },
@@ -211,7 +238,9 @@ export function createMuseDriver({
       try {
         ({ page } = await open(accountId, false));
         await page.goto(homeUrl, { waitUntil: "domcontentloaded" });
-        return await turnOnPage(page, { message, files, timeoutMs });
+        const result = await turnOnPage(page, { message, files, timeoutMs });
+        if (!result.media.length) await screenshot(page, jobId); // để xem Muse đã trả lời gì
+        return result;
       } catch (err) {
         await screenshot(page, jobId);
         throw err instanceof MuseError ? err : new MuseError("BROWSER", err.message.split("\n")[0]);

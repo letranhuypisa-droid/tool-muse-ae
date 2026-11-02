@@ -27,12 +27,13 @@ function setup({ accounts: nAccounts = 1, jobs: nJobs = 1, settings = {} } = {})
   const runJob = (job, account, { signal }) =>
     new Promise((resolve) => calls.push({ job, account, signal, resolve }));
   const closed = [];
-  const driver = { close: async (id) => closed.push(id) };
+  const held = new Set();
+  const driver = { close: async (id) => closed.push(id), isOpen: (id) => held.has(id) };
   const cfg = normalizeSettings({ delayMinSec: 0, delayMaxSec: 0, ...settings });
   const scheduler = createScheduler({
     accounts, jobs, getSettings: () => cfg, runJob, driver, now, random: () => 0, tickMs: 1_000_000,
   });
-  return { accounts, jobs, scheduler, calls, closed, clock, accIds, cfg };
+  return { accounts, jobs, scheduler, calls, closed, clock, accIds, cfg, held };
 }
 
 const flush = () => new Promise((r) => setImmediate(r));
@@ -171,7 +172,7 @@ test("rest delay applied after a job", async () => {
   assert.equal(acc.restUntil, new Date(clock.now.getTime() + 20_000).toISOString());
   await scheduler.tick();
   assert.equal(calls.length, 1);
-  assert.equal(scheduler.status().waiting, "no_accounts");
+  assert.equal(scheduler.status().waiting, "resting");
   clock.now = new Date(clock.now.getTime() + 21_000);
   await scheduler.tick();
   assert.equal(calls.length, 2);
@@ -217,4 +218,83 @@ test("cancel of a queued job just marks it cancelled", async () => {
   await scheduler.cancel(job.id);
   assert.equal(jobs.get(job.id).status, "cancelled");
   assert.deepEqual(closed, []);
+});
+
+test("retry of a cancelled job waits until the old run settles", async () => {
+  const { scheduler, calls, jobs } = setup({ accounts: 3 });
+  await scheduler.tick();
+  const jobId = calls[0].job.id;
+  await scheduler.cancel(jobId);
+  jobs.retry(jobId);
+  await scheduler.tick();
+  assert.equal(calls.length, 1, "no second run while the first is still settling");
+  calls[0].resolve({ ok: false, code: "TRANSIENT", message: "Đã hủy" });
+  await scheduler.whenIdle();
+  const job = jobs.get(jobId);
+  assert.equal(job.status, "queued");
+  assert.equal(job.attempts, 0, "the aborted run's outcome is ignored");
+  await scheduler.tick();
+  assert.equal(calls.length, 2);
+  assert.equal(scheduler.status().running, 1);
+  assert.equal(scheduler.isBusy(calls[1].account.id), true);
+});
+
+test("LIMIT on a second account for the same job is not another cooldown", async () => {
+  const { scheduler, calls, jobs, accounts } = setup({ accounts: 2 });
+  await scheduler.tick();
+  calls[0].resolve({ ok: false, code: "LIMIT", message: "hết lượt", replyText: "limit" });
+  await scheduler.whenIdle();
+  await scheduler.tick();
+  assert.equal(calls.length, 2);
+  assert.notEqual(calls[1].account.id, calls[0].account.id);
+  calls[1].resolve({ ok: false, code: "LIMIT", message: "hết lượt", replyText: "limit" });
+  await scheduler.whenIdle();
+  assert.equal(accounts.get(calls[0].account.id).state, "cooldown");
+  assert.equal(accounts.get(calls[1].account.id).state, "ready");
+  const job = jobs.get(calls[0].job.id);
+  assert.equal(job.attempts, 1);
+  assert.equal(job.status, "queued");
+});
+
+test("accounts with an open manual window are not picked", async () => {
+  const { scheduler, calls, held, accIds } = setup({ accounts: 1 });
+  held.add(accIds[0]);
+  await scheduler.tick();
+  assert.equal(calls.length, 0);
+  held.delete(accIds[0]);
+  await scheduler.tick();
+  assert.equal(calls.length, 1);
+});
+
+test("job is requeued even when the account write fails", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "muse sched "));
+  const real = createJsonStore(path.join(dir, "a.json"), []);
+  let fail = false;
+  const flaky = {
+    read: real.read,
+    write: (v) => {
+      if (fail) throw Object.assign(new Error("EPERM: rename"), { code: "EPERM" });
+      real.write(v);
+    },
+    update(fn) {
+      const next = fn(real.read());
+      this.write(next);
+      return next;
+    },
+  };
+  const accounts = createAccountService({ store: flaky, profilesDir: dir });
+  const jobs = createJobService({ store: createJsonStore(path.join(dir, "j.json"), []) });
+  const acc = accounts.create("A");
+  accounts.setState(acc.id, "ready");
+  const [job] = jobs.enqueue({ type: "image", prompt: "x" });
+  let resolveRun;
+  const scheduler = createScheduler({
+    accounts, jobs, getSettings: () => normalizeSettings({ delayMinSec: 0, delayMaxSec: 0 }),
+    runJob: () => new Promise((r) => (resolveRun = r)), driver: { close: async () => {} }, tickMs: 1_000_000,
+  });
+  await scheduler.tick();
+  fail = true;
+  resolveRun({ ok: false, code: "LIMIT", message: "hết lượt" });
+  await scheduler.whenIdle();
+  assert.equal(jobs.get(job.id).status, "queued");
 });

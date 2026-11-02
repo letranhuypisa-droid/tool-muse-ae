@@ -9,6 +9,7 @@ import { NotFoundError, ValidationError, newId } from "./util.js";
 const UPLOAD_ERROR = "Chỉ nhận ảnh JPG, PNG hoặc WEBP, tối đa 20 MB, tối đa 9 ảnh";
 const BUSY_ERROR = "Tài khoản đang chạy việc, thử lại sau";
 const IMAGE_EXT = { "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp" };
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 function isInside(child, parent) {
   const rel = path.relative(parent, path.resolve(child));
@@ -24,6 +25,21 @@ function defaultOpenPath(target) {
 
 export function createApp({ accounts, jobs, scheduler, driver, settings, paths, openPath = defaultOpenPath }) {
   const app = express();
+
+  // Chỉ phục vụ trang của chính tool: chặn trang web lạ (hoặc DNS rebinding) gọi API trên máy bạn.
+  app.use((req, res, next) => {
+    const host = (req.headers.host || "").replace(/:\d+$/, "").toLowerCase();
+    let originOk = true;
+    if (req.headers.origin) {
+      try {
+        originOk = LOCAL_HOSTS.has(new URL(req.headers.origin).hostname.toLowerCase());
+      } catch {
+        originOk = false;
+      }
+    }
+    if (!LOCAL_HOSTS.has(host) || !originOk) return res.status(403).json({ error: "Từ chối truy cập" });
+    next();
+  });
   app.use(express.json({ limit: "2mb" }));
 
   const state = () => ({
@@ -66,7 +82,14 @@ export function createApp({ accounts, jobs, scheduler, driver, settings, paths, 
       "cache-control": "no-cache",
       connection: "keep-alive",
     });
-    const send = () => res.write(`event: state\ndata: ${JSON.stringify(state())}\n\n`);
+    // Chạy trong setTimeout: lỗi đọc file ở đây không được làm sập cả tool, lần thay đổi sau sẽ gửi lại.
+    const send = () => {
+      try {
+        res.write(`event: state\ndata: ${JSON.stringify(state())}\n\n`);
+      } catch (err) {
+        console.error("[sse]", err.message);
+      }
+    };
     let timer = null;
     const onChange = () => {
       if (timer) return;

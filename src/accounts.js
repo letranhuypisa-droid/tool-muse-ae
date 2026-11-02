@@ -92,18 +92,14 @@ export function createAccountService({ store, profilesDir, now = () => new Date(
       return mutate(id, (a) => ({ ...a, restUntil: untilIso }));
     },
 
+    // Chạy mỗi vài giây nên chỉ ghi file khi thật sự có tài khoản hết thời gian nghỉ.
     refreshCooldowns() {
       const t = now().getTime();
-      let changed = false;
-      store.update((list) =>
-        list.map((a) => {
-          if (a.state !== "cooldown" || !a.cooldownUntil || Date.parse(a.cooldownUntil) > t) return a;
-          changed = true;
-          return { ...a, state: "ready", cooldownUntil: null };
-        }),
-      );
-      if (changed) notifyChange();
-      return changed;
+      const expired = (a) => a.state === "cooldown" && a.cooldownUntil && Date.parse(a.cooldownUntil) <= t;
+      if (!store.read().some(expired)) return false;
+      store.update((list) => list.map((a) => (expired(a) ? { ...a, state: "ready", cooldownUntil: null } : a)));
+      notifyChange();
+      return true;
     },
   };
 }

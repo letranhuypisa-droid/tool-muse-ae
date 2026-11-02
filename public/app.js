@@ -82,7 +82,9 @@ function render() {
     ? "Hàng đợi đang tạm dừng"
     : scheduler.running
       ? `Đang chạy ${scheduler.running} việc`
-      : "Đang chờ việc";
+      : scheduler.waiting === "resting"
+        ? "Tài khoản đang nghỉ giữa 2 việc (giảm rủi ro bị khóa)"
+        : "Đang chờ việc";
   $("#toggle-queue").textContent = scheduler.paused ? "Chạy tiếp" : "Tạm dừng";
   $("#banner").hidden = scheduler.waiting !== "no_accounts";
 

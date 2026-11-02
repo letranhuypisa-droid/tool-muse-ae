@@ -42,3 +42,39 @@ test("store.update applies fn and persists", () => {
   assert.deepEqual(result, { n: 1 });
   assert.deepEqual(createJsonStore(file, {}).read(), { n: 1 });
 });
+
+test("store.write retries a rename that fails with EPERM (OneDrive / antivirus lock)", () => {
+  const file = tmpFile();
+  const store = createJsonStore(file, {});
+  const original = fs.renameSync;
+  let failures = 2;
+  fs.renameSync = (...args) => {
+    if (failures-- > 0) throw Object.assign(new Error("EPERM: operation not permitted, rename"), { code: "EPERM" });
+    return original(...args);
+  };
+  try {
+    store.write({ ok: true });
+  } finally {
+    fs.renameSync = original;
+  }
+  assert.deepEqual(store.read(), { ok: true });
+});
+
+test("store.read retries a read that fails with EBUSY", () => {
+  const file = tmpFile();
+  const store = createJsonStore(file, {});
+  store.write({ v: 1 });
+  const original = fs.readFileSync;
+  let failures = 1;
+  fs.readFileSync = (...args) => {
+    if (failures-- > 0) throw Object.assign(new Error("EBUSY: resource busy"), { code: "EBUSY" });
+    return original(...args);
+  };
+  let value;
+  try {
+    value = store.read();
+  } finally {
+    fs.readFileSync = original;
+  }
+  assert.deepEqual(value, { v: 1 });
+});

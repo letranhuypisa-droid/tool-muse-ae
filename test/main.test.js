@@ -31,3 +31,23 @@ test("startServer serves the UI, recovers interrupted jobs, and closes", async (
     await server.close();
   }
 });
+
+test("a second start on the same port rejects and leaves jobs untouched", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "muse main "));
+  const driver = createFakeDriver(() => ({ media: [], replyText: "" }));
+  const first = await startServer({ root, port: 0, driver });
+  try {
+    const port = Number(new URL(first.url).port);
+    const jobsFile = path.join(root, "data", "jobs.json");
+    const running = [{
+      id: "job_live", type: "image", prompt: "x", refImages: [], durationSec: null, upscale1080: null,
+      status: "running", progress: { clip: 1, totalClips: 1 }, accountId: "acc_a", attempts: 0,
+      rawFiles: [], outputs: [], replyText: null, error: null, createdAt: "2026-11-02T00:00:00.000Z", updatedAt: "2026-11-02T00:00:00.000Z",
+    }];
+    fs.writeFileSync(jobsFile, JSON.stringify(running));
+    await assert.rejects(startServer({ root, port, driver }), (err) => err.code === "EADDRINUSE");
+    assert.deepEqual(JSON.parse(fs.readFileSync(jobsFile, "utf8")), running);
+  } finally {
+    await first.close();
+  }
+});

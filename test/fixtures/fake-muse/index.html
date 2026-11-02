@@ -30,6 +30,7 @@
     msg?.addEventListener("keydown", async (e) => {
       if (e.key !== "Enter" || e.shiftKey) return;
       e.preventDefault();
+      if (window.__blockSend) return; // giả lập muse không nhận Enter (đang tải ảnh, có hộp thoại…)
       const text = msg.value;
       msg.value = "";
       previews.innerHTML = "";

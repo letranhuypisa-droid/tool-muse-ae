@@ -21,6 +21,7 @@ before(async () => {
     errorsDir: path.join(dir, "errors"),
     getSettings: () => normalizeSettings({ headless: true }),
     homeUrl: server.url,
+    sendWaitMs: 3000,
   });
 });
 
@@ -79,10 +80,11 @@ test("attachments reach the file input", async () => {
   await driver.close("acc_att");
 });
 
-test("limit reply has no media", async () => {
-  const r = await turn("acc_lim", "LIMIT please");
+test("limit reply has no media and leaves a screenshot", async () => {
+  const r = await driver.runTurn("acc_lim", { message: "LIMIT please", files: [], timeoutMs: 20_000, jobId: "job_lim" });
   assert.equal(r.media.length, 0);
   assert.match(r.replyText, /daily limit/);
+  assert.ok(fs.readdirSync(path.join(dir, "errors")).some((f) => f.startsWith("job_lim-")));
   await driver.close("acc_lim");
 });
 
@@ -108,4 +110,18 @@ test("checkLoggedIn true on a logged-in page", async () => {
   assert.equal(driver.isOpen("acc_ok"), true);
   await driver.close("acc_ok");
   assert.equal(driver.isOpen("acc_ok"), false);
+});
+
+test("a message that never gets sent throws instead of returning old media", async () => {
+  const page = await driver._pageFor("acc_stale");
+  await page.goto(server.url);
+  const first = await driver._turnOnPage(page, { message: "Tạo ngay 1 video: cảnh biển", files: [], timeoutMs: 20_000 });
+  assert.equal(first.media.length, 1);
+  await page.evaluate(() => (window.__blockSend = true));
+  await assert.rejects(
+    driver._turnOnPage(page, { message: "Tạo ngay 1 video: cảnh biển", files: [], timeoutMs: 20_000 }),
+    (err) => err instanceof MuseError && err.code === "BROWSER" && /Không gửi được/.test(err.message),
+  );
+  assert.equal(await page.evaluate(() => window.__sends), 1);
+  await driver.close("acc_stale");
 });

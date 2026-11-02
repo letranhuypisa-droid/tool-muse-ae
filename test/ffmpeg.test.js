@@ -2,7 +2,7 @@ import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { probe, targetSize, extractLastFrame, finalizeVideo, FfmpegError } from "../src/media/ffmpeg.js";
+import { probe, targetSize, extractLastFrame, finalizeVideo, FfmpegError, streamFps } from "../src/media/ffmpeg.js";
 import { makeFixtureDir, makeClip } from "./helpers/fixtures.js";
 
 let dir, landscape, landscape2, portrait;
@@ -81,4 +81,22 @@ test("finalizeVideo rejects with FfmpegError on missing input", async () => {
     FfmpegError,
   );
   assert.equal(fs.existsSync(path.join(dir, "x.mp4")), false);
+});
+
+test("finalizeVideo stops when the abort signal fires", async () => {
+  const controller = new AbortController();
+  controller.abort();
+  const out = path.join(dir, "aborted.mp4");
+  await assert.rejects(
+    finalizeVideo({ inputs: [landscape], output: out, trimSec: 5, upscale1080: true, signal: controller.signal }),
+    FfmpegError,
+  );
+  assert.equal(fs.existsSync(out), false);
+});
+
+test("streamFps prefers avg_frame_rate and rejects absurd rates", () => {
+  assert.equal(streamFps({ avg_frame_rate: "24/1", r_frame_rate: "90000/1" }), 24);
+  assert.equal(streamFps({ avg_frame_rate: "0/0", r_frame_rate: "90000/1" }), 30);
+  assert.equal(streamFps({ avg_frame_rate: "30000/1001", r_frame_rate: "30000/1001" }), 29.97);
+  assert.equal(streamFps({}), 30);
 });

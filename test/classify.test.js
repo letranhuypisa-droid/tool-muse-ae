@@ -18,3 +18,16 @@ test("classifyReply falls back to NO_MEDIA", () => {
   assert.equal(classifyReply(""), "NO_MEDIA");
   assert.equal(classifyReply(undefined), "NO_MEDIA");
 });
+
+test("classifyReply ignores ordinary words that look like limits or refusals", () => {
+  for (const text of [
+    "Do you want the cat jumping out of the box to be orange or black?",
+    "Bạn muốn cảnh bình minh ngày mai hay hoàng hôn?",
+    "Sure! Should the credits roll at the end?",
+    "I cannot wait to make this…",
+    "Video giới hạn 10 giây nhé, bạn muốn góc quay nào?",
+    "Want me to upgrade the lighting a bit?",
+  ]) {
+    assert.equal(classifyReply(text), "NO_MEDIA", text);
+  }
+});

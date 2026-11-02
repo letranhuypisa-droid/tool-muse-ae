@@ -57,7 +57,7 @@ export function createJobService({ store, now = () => new Date() }) {
   return {
     get,
     list: () => [...store.read()].reverse(),
-    nextQueued: () => store.read().find((j) => j.status === "queued"),
+    nextQueued: (skipIds = new Set()) => store.read().find((j) => j.status === "queued" && !skipIds.has(j.id)),
 
     enqueue(input) {
       const v = validate(input);
@@ -97,7 +97,7 @@ export function createJobService({ store, now = () => new Date() }) {
 
     retry(id) {
       requireStatus(id, ["failed", "refused", "cancelled"], "Chỉ chạy lại được việc lỗi, bị từ chối hoặc đã hủy");
-      return mutate(id, (j) => ({ ...j, status: "queued", attempts: 0, error: null, accountId: null }));
+      return mutate(id, (j) => ({ ...j, status: "queued", attempts: 0, error: null, accountId: null, limitHits: [] }));
     },
 
     remove(id) {
